@@ -8,8 +8,10 @@
 import io
 import bson
 import struct
+import threading
 import numpy as np
 import pandas as pd
+from PIL import Image
 from os.path import isfile
 from collections import defaultdict
 from torch.utils.data import Dataset
@@ -23,7 +25,7 @@ class CDiscountDataSet(Dataset):
     """
 
     CATEGORY_NAMES_PATH = 'category_names.csv'
-    OFFSETS_PATH = 'offsets.csv'
+    OFFSETS_PATH = '_offsets.csv'
     INDEXES_PATH = '_indexes.csv'
 
     def __init__(self, bsonpath, training=True, categories_path=None):
@@ -55,7 +57,44 @@ class CDiscountDataSet(Dataset):
         self.indexes = None  # Csv loaded into memory as a pandas dataframe.
         self.get_indexes()
 
-        self.data = None  # Actual bson data file pointer (doesn't load into memory).
+        self.file = open(bsonpath, "rb")  # Actual bson data file pointer (doesn't load into memory).
+
+        self.lock = threading.Lock()  # Lock since Pytorch uses multithreading (maybe?).
+
+    def __len__(self):
+        """
+        Total number of images in the data set.
+        :return: int
+        """
+        return len(self.indexes)
+
+    def __getitem__(self, item):
+        """
+        Random access to an image and its label
+        :param item: integer, index of desired image.
+        :return: tuple, (image, label) with types (PIL.Image, np.array)
+        """
+        # Only need to protect when we're accessing the file and dataframes.
+        with self.lock:
+            index_row = self.indexes.iloc[item]
+            product_id = index_row["product_id"]
+            offset_row = self.offsets.loc[product_id]
+
+            # Read product's data from BSON file.
+            self.file.seek(offset_row["offset"])
+            item_data = self.file.read(offset_row["length"])
+
+        # Get the image and label.
+        item = bson.BSON(item_data).decode()
+        img_idx = index_row["img_idx"]
+        bson_img = io.BytesIO(item["imgs"][img_idx]["picture"])
+
+        # Create the image object.
+        image = Image.open(bson_img)
+        label = np.zeros(self.num_categories)
+        label[index_row["category_idx"]] = 1  # One-hot encoding. 
+
+        return image, label
 
     def make_category_tables(self, categories_path):
         """
@@ -80,9 +119,14 @@ class CDiscountDataSet(Dataset):
         For the full train.bson file, this will take several minutes.
         :param bsonpath: filepath to train.bson or test.bson.
         """
-        if isfile(self.OFFSETS_PATH):
+        if self.training and isfile("training" + self.OFFSETS_PATH):
             print("Found stored offsets! Loading from csv...")
-            self.offsets = pd.read_csv(self.OFFSETS_PATH, index_col=0)
+            self.offsets = pd.read_csv("training" + self.OFFSETS_PATH, index_col=0)
+            return
+
+        if not self.training and isfile("testing" + self.OFFSETS_PATH):
+            print("Found stored offsets! Loading from csv...")
+            self.offsets = pd.read_csv("testing" + self.OFFSETS_PATH, index_col=0)
             return
 
         rows = {}
@@ -101,10 +145,11 @@ class CDiscountDataSet(Dataset):
                 f.seek(offset)
                 item_data = f.read(length)
 
-                assert len(item_data) == length, "Assert failed, something went wrong with reading data length."
+                assert len(item_data) == length, "Something went wrong with reading data length."
 
                 item = bson.BSON(item_data).decode()
                 product_id = item["_id"]
+
                 num_imgs = len(item["imgs"])
                 category = item["category_id"]
 
@@ -121,7 +166,7 @@ class CDiscountDataSet(Dataset):
         df.columns = columns
         df.sort_index(inplace=True)
 
-        df.to_csv(self.OFFSETS_PATH)
+        df.to_csv(("training" if self.training else "testing") + self.OFFSETS_PATH)
 
         self.offsets = df
 
@@ -162,11 +207,7 @@ class CDiscountDataSet(Dataset):
         columns = ["product_id", "category_idx", "img_idx"]
         index_df = pd.DataFrame(index_list, columns=columns)
 
-        if self.training:
-            index_df.to_csv("training" + self.INDEXES_PATH)
-
-        else:
-            index_df.to_csv("testing" + self.INDEXES_PATH)
+        index_df.to_csv(("training" if self.training else "testing") + self.INDEXES_PATH)
 
         self.indexes = index_df
 
@@ -180,11 +221,20 @@ def demo():
     print("Total number of categories: {:d}".format(len(ds.cat2idx)))
     print("Number of images: {:d}".format(len(ds.indexes)))
 
-    print("An example of the offsets data frame: ")
+    print("\nAn example of the offsets dataframe: ")
     print(ds.offsets.iloc[0])
 
-    print("An example of the indexes data frame: ")
+    print("\nAn example of the indexes dataframe: ")
     print(ds.indexes.iloc[0])
+
+    print("\nDo a random access into the dataset: ")
+    print(ds[5])
+
+    for i in range(len(ds)):
+        # Make sure everything can be indexed without error.
+        ds[i]
+
+    # Use ds[i][0].show() to look at the image if you want.
 
 
 if __name__ == "__main__":
