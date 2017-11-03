@@ -1,7 +1,7 @@
 #
 # Code for processing the .bson files for use elsewhere.
 #
-# Functions adapted from various Kaggle kernel:
+# Functions adapted from Kaggle kernel:
 #   https://www.kaggle.com/humananalog/keras-generator-for-reading-directly-from-bson
 #
 
@@ -15,7 +15,7 @@ from PIL import Image
 from os.path import isfile
 from collections import defaultdict
 from torch.utils.data import Dataset
-
+from torchvision.transforms import ToTensor
 
 class CDiscountDataSet(Dataset):
     """
@@ -28,11 +28,14 @@ class CDiscountDataSet(Dataset):
     OFFSETS_PATH = '_offsets.csv'
     INDEXES_PATH = '_indexes.csv'
 
-    def __init__(self, bsonpath, training=True, categories_path=None):
+    def __init__(self, bsonpath, training=True, categories_path=None, transform=None):
         """
         Constructor.
         Creates the files necessary for random indexing across the bson file.
         :param bsonpath: filepath to train.bson or test.bson.
+        :param training: is this the training dataset?
+        :param categories_path: path to category_names.csv.
+        :param transform: pytorch transformation.
         """
         if not isfile(bsonpath):
             raise FileNotFoundError("CDiscountDataSet __init__ given nonexistent bson filepath.")
@@ -44,6 +47,7 @@ class CDiscountDataSet(Dataset):
             raise FileNotFoundError("CDiscountDataSet __init__ can't find categories csv.")
 
         self.training = training
+        self.transform = transform
 
         self.cat2idx = {}  # Given category, transform to index.
         self.idx2cat = {}  # Given index, transform to category (not really used, but here for possible use later).
@@ -93,6 +97,9 @@ class CDiscountDataSet(Dataset):
         image = Image.open(bson_img)
         label = np.zeros(self.num_categories)
         label[index_row["category_idx"]] = 1  # One-hot encoding. 
+
+        if self.transform:
+            image = self.transform(image)
 
         return image, label
 
