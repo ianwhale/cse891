@@ -24,8 +24,9 @@ class CDiscountDataSet(Dataset):
 
     CATEGORY_NAMES_PATH = 'category_names.csv'
     OFFSETS_PATH = 'offsets.csv'
+    INDEXES_PATH = '_indexes.csv'
 
-    def __init__(self, bsonpath, categories_path=None):
+    def __init__(self, bsonpath, training=True, categories_path=None):
         """
         Constructor.
         Creates the files necessary for random indexing across the bson file.
@@ -40,6 +41,8 @@ class CDiscountDataSet(Dataset):
         if not isfile(categories_path):
             raise FileNotFoundError("CDiscountDataSet __init__ can't find categories csv.")
 
+        self.training = training
+
         self.cat2idx = {}  # Given category, transform to index.
         self.idx2cat = {}  # Given index, transform to category (not really used, but here for possible use later).
         self.make_category_tables(categories_path)
@@ -48,6 +51,9 @@ class CDiscountDataSet(Dataset):
 
         self.offsets = None  # Csv loaded into memory as a pandas dataframe.
         self.get_offsets(bsonpath)
+
+        self.indexes = None  # Csv loaded into memory as a pandas dataframe.
+        self.get_indexes()
 
         self.data = None  # Actual bson data file pointer (doesn't load into memory).
 
@@ -75,7 +81,9 @@ class CDiscountDataSet(Dataset):
         :param bsonpath: filepath to train.bson or test.bson.
         """
         if isfile(self.OFFSETS_PATH):
-            self.offsets = pd.read_csv(self.OFFSETS_PATH)
+            print("Found stored offsets! Loading from csv...")
+            self.offsets = pd.read_csv(self.OFFSETS_PATH, index_col=0)
+            return
 
         rows = {}
 
@@ -117,6 +125,51 @@ class CDiscountDataSet(Dataset):
 
         self.offsets = df
 
+    def get_indexes(self):
+        """
+        Get the indexes that will actually be used.
+
+        TODO: Doing some more sophisticated choice here, rather than choosing everything.
+              Possibilities:
+                    - Balance class sizes.
+                    - Remove some smallest % of classes.
+        """
+        if self.training and isfile("training" + self.INDEXES_PATH):
+            print("Found stored indexes! Loading from csv...")
+            self.indexes = pd.read_csv("training" + self.INDEXES_PATH, index_col=0)
+            return
+
+        if not self.training and isfile("testing" + self.INDEXES_PATH):
+            print("Found stored indexes! Loading from csv...")
+            self.indexes = pd.read_csv("testing" + self.INDEXES_PATH, index_col=0)
+            return
+
+        category_dict = defaultdict(list)  # Product ids belonging to each category.
+
+        for itr in self.offsets.itertuples():
+            category_dict[itr[4]].append(itr[0])
+
+        index_list = []
+        for category_id, product_ids in category_dict.items():
+            category_idx = self.cat2idx[category_id]
+
+            for product_id in product_ids:
+                row = [product_id, category_idx]
+
+                for img_idx in range(self.offsets.loc[product_id, "num_imgs"]):
+                    index_list.append(row + [img_idx])
+
+        columns = ["product_id", "category_idx", "img_idx"]
+        index_df = pd.DataFrame(index_list, columns=columns)
+
+        if self.training:
+            index_df.to_csv("training" + self.INDEXES_PATH)
+
+        else:
+            index_df.to_csv("testing" + self.INDEXES_PATH)
+
+        self.indexes = index_df
+
 
 def demo():
     """
@@ -125,6 +178,13 @@ def demo():
     ds = CDiscountDataSet('train_example.bson')
 
     print("Total number of categories: {:d}".format(len(ds.cat2idx)))
+    print("Number of images: {:d}".format(len(ds.indexes)))
+
+    print("An example of the offsets data frame: ")
+    print(ds.offsets.iloc[0])
+
+    print("An example of the indexes data frame: ")
+    print(ds.indexes.iloc[0])
 
 
 if __name__ == "__main__":
