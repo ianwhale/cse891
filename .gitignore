@@ -1,2 +1,4 @@
 *.bson
+*.csv
 .idea/
+.ipynb_checkpoints/
