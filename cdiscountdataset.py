@@ -16,7 +16,7 @@ from PIL import Image
 from os.path import isfile
 from collections import defaultdict
 from torch.utils.data import Dataset
-from torchvision.transforms import ToTensor
+
 
 class CDiscountDataSet(Dataset):
     """
