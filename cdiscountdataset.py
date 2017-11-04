@@ -7,6 +7,7 @@
 
 import io
 import bson
+import torch
 import struct
 import threading
 import numpy as np
@@ -95,13 +96,13 @@ class CDiscountDataSet(Dataset):
 
         # Create the image object.
         image = Image.open(bson_img)
-        label = np.zeros(self.num_categories)
-        label[index_row["category_idx"]] = 1  # One-hot encoding. 
+        label = np.zeros(self.num_categories, dtype=np.int64)  # PyTorch insists on longs for whatever reason...
+        label[index_row["category_idx"]] = 1  # One-hot encoding.
 
         if self.transform:
             image = self.transform(image)
 
-        return image, label
+        return image, torch.from_numpy(label)
 
     def make_category_tables(self, categories_path):
         """
