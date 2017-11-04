@@ -22,6 +22,11 @@ cd -
 sudo apt-get update --fix-missing
 sudo apt-get install cuda-8-0
 sudo apt-get install python3-pip
-sudo pip3 install pymongo
+sudo pip install pymongo
 sudo pip3 install Pillow
-sudo conda install pytorch torchvision cuda80 -c soumith
+
+exec $SHELL
+
+conda install pytorch torchvision cuda80 -c soumith
+
+sudo apt-get install p7zip-full
