@@ -1,4 +1,5 @@
 import cdiscountdataset as cdd
+import pandas as pd
 
 class StatsManager:
 
@@ -42,23 +43,40 @@ class StatsManager:
             return sort_data[len_data // 2]
 
 
-def get_category_breakdown(dataframe):
-    category_count = {}
+def get_level_breakdown(dataframe, unique_list, categories_df, level):
+    category_count = {k: 0 for k in unique_list}
 
     for i in range(len(dataframe.indexes)):
-        category = dataframe.indexes.iloc[i][1]
+        if i % 10000 == 0:
+            print(i)
+        category_idx = dataframe.indexes.iloc[i][1]
+        level_path = "category_level{}".format(level)
+        cat_name = categories_df[level_path].iloc[category_idx]
+        category_count[cat_name] += 1
 
-        if category in category_count.keys():
-            category_count[category] += 1
-        else:
-            category_count[category] = 1
 
     return category_count
 
 def run_stats(dataframe):
-    cat_counts = get_category_breakdown(dataframe)
-    statsM = StatsManager(cat_counts)
-    print(statsM)
+    categories_df = pd.read_csv('category_names.csv', index_col="category_id")
+    categories_df["category_idx"] = pd.Series(range(len(categories_df)), index=categories_df.index)
+    unique_list = categories_df["category_level3"].unique()
+
+    print("Start Category Counting:", len(unique_list))
+    cat_counts = get_level_breakdown(dataframe, unique_list, categories_df, 3)
+    print("Writing to file:")
+    file_ = open('stats3.csv', 'w')
+    for key in cat_counts.keys():
+        file_.write(str(key) + "," + str(cat_counts[key]) + '\n')
+
+    print("Done")
+    file_.close()
+
+
+    # cat_counts = get_level_breakdown(dataframe, categories_df, 1)
+    # exit(0)
+    # statsM = StatsManager(cat_counts)
+    # print(statsM)
 
 
 if __name__ == "__main__":
