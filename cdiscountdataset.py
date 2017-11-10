@@ -245,6 +245,7 @@ class CDiscountDataSet(Dataset):
 
 
 def demo():
+    from os import remove
     """
     Demonstrate the primary functions in this file.
     """
@@ -267,6 +268,10 @@ def demo():
         ds[i]
 
     # Use ds[i][0].show() to look at the image if you want.
+
+    # Clean up testing files that were created as they'll mess things up if we try to construct on the actual datasets.
+    remove('training' + ds.OFFSETS_PATH)
+    remove('training' + ds.INDEXES_PATH)
 
 
 if __name__ == "__main__":
