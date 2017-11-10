@@ -22,6 +22,7 @@ cd -
 sudo apt-get update --fix-missing
 sudo apt-get install cuda-8-0
 sudo apt-get install python3-pip
+sudo apt-get install python-pip
 sudo pip install pymongo
 sudo pip3 install Pillow
 
