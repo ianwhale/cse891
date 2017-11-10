@@ -64,7 +64,7 @@ class CDiscountDataSet(Dataset):
         self.idx2cat = {}    # Given index, transform to category (not really used, but here for possible use later).
         self.make_category_tables(categories_path)
 
-        self.num_categories = len(self.cat2idx)  # Number of categories. Used for one-hot encoding.
+        self.num_categories = max(self.idx2level.values()) + 1  # Number of categories. Used for one-hot encoding.
 
         self.offsets = None  # Csv loaded into memory as a pandas dataframe.
         self.get_offsets(bsonpath)
@@ -251,7 +251,7 @@ def demo():
     """
     ds = CDiscountDataSet('train_example.bson', category_level=3)
 
-    print("Total number of output classes: {:d}".format(max(ds.idx2level.values()) + 1))
+    print("Total number of output classes: {:d}".format(ds.num_categories))
     print("Number of images: {:d}".format(len(ds.indexes)))
 
     print("\nAn example of the offsets dataframe: ")
