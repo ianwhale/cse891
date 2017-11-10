@@ -30,7 +30,6 @@ class CDiscountDataSet(Dataset):
     INDEXES_PATH = '_indexes.csv'
 
     def __init__(self, bsonpath,
-                 training=True,
                  categories_path=None,
                  transform=None,
                  category_level=3):
@@ -38,7 +37,6 @@ class CDiscountDataSet(Dataset):
         Constructor.
         Creates the files necessary for random indexing across the bson file.
         :param bsonpath: filepath to train.bson or test.bson.
-        :param training: is this the training dataset?
         :param categories_path: path to category_names.csv.
         :param transform: pytorch transformation.
         :param category_level: category level to classify at. Options:
@@ -55,7 +53,6 @@ class CDiscountDataSet(Dataset):
         if not isfile(categories_path):
             raise FileNotFoundError("CDiscountDataSet __init__ can't find categories csv.")
 
-        self.training = training
         self.transform = transform
 
         self.category_level = category_level
@@ -151,14 +148,9 @@ class CDiscountDataSet(Dataset):
         For the full train.bson file, this will take several minutes.
         :param bsonpath: filepath to train.bson or test.bson.
         """
-        if self.training and isfile("training" + self.OFFSETS_PATH):
+        if isfile("training" + self.OFFSETS_PATH):
             print("Found stored offsets! Loading from csv...")
             self.offsets = pd.read_csv("training" + self.OFFSETS_PATH, index_col=0)
-            return
-
-        if not self.training and isfile("testing" + self.OFFSETS_PATH):
-            print("Found stored offsets! Loading from csv...")
-            self.offsets = pd.read_csv("testing" + self.OFFSETS_PATH, index_col=0)
             return
 
         rows = {}
@@ -198,7 +190,7 @@ class CDiscountDataSet(Dataset):
         df.columns = columns
         df.sort_index(inplace=True)
 
-        df.to_csv(("training" if self.training else "testing") + self.OFFSETS_PATH)
+        df.to_csv("training" + self.OFFSETS_PATH)
 
         self.offsets = df
 
@@ -211,14 +203,9 @@ class CDiscountDataSet(Dataset):
                     - Balance class sizes.
                     - Remove some smallest % of classes.
         """
-        if self.training and isfile("training" + self.INDEXES_PATH):
+        if isfile("training" + self.INDEXES_PATH):
             print("Found stored indexes! Loading from csv...")
             self.indexes = pd.read_csv("training" + self.INDEXES_PATH, index_col=0)
-            return
-
-        if not self.training and isfile("testing" + self.INDEXES_PATH):
-            print("Found stored indexes! Loading from csv...")
-            self.indexes = pd.read_csv("testing" + self.INDEXES_PATH, index_col=0)
             return
 
         category_dict = defaultdict(list)  # Product ids belonging to each category.
@@ -239,7 +226,7 @@ class CDiscountDataSet(Dataset):
         columns = ["product_id", "category_idx", "img_idx"]
         index_df = pd.DataFrame(index_list, columns=columns)
 
-        index_df.to_csv(("training" if self.training else "testing") + self.INDEXES_PATH)
+        index_df.to_csv("training" + self.INDEXES_PATH)
 
         self.indexes = index_df
 
@@ -273,6 +260,10 @@ def demo():
     remove('training' + ds.OFFSETS_PATH)
     remove('training' + ds.INDEXES_PATH)
 
+
+    import torchvision
+
+    torchvision.transforms.Scale
 
 if __name__ == "__main__":
     # Demo if train_example.bson is present.
