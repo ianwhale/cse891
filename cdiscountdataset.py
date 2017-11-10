@@ -29,7 +29,11 @@ class CDiscountDataSet(Dataset):
     OFFSETS_PATH = '_offsets.csv'
     INDEXES_PATH = '_indexes.csv'
 
-    def __init__(self, bsonpath, training=True, categories_path=None, transform=None):
+    def __init__(self, bsonpath,
+                 training=True,
+                 categories_path=None,
+                 transform=None,
+                 category_level=3):
         """
         Constructor.
         Creates the files necessary for random indexing across the bson file.
@@ -37,6 +41,10 @@ class CDiscountDataSet(Dataset):
         :param training: is this the training dataset?
         :param categories_path: path to category_names.csv.
         :param transform: pytorch transformation.
+        :param category_level: category level to classify at. Options:
+            - 3: All three categories (biggest task, 5270 classes).
+            - 2: Second category.
+            - 1: First category (smallest task, around 50 classes).
         """
         if not isfile(bsonpath):
             raise FileNotFoundError("CDiscountDataSet __init__ given nonexistent bson filepath.")
@@ -50,8 +58,10 @@ class CDiscountDataSet(Dataset):
         self.training = training
         self.transform = transform
 
-        self.cat2idx = {}  # Given category, transform to index.
-        self.idx2cat = {}  # Given index, transform to category (not really used, but here for possible use later).
+        self.category_level = category_level
+        self.idx2level = {}  # Given an index, transform to a category level index.
+        self.cat2idx = {}    # Given category, transform to index.
+        self.idx2cat = {}    # Given index, transform to category (not really used, but here for possible use later).
         self.make_category_tables(categories_path)
 
         self.num_categories = len(self.cat2idx)  # Number of categories. Used for one-hot encoding.
@@ -96,13 +106,13 @@ class CDiscountDataSet(Dataset):
 
         # Create the image object.
         image = Image.open(bson_img)
-        label = np.zeros(self.num_categories, dtype=np.int64)  # PyTorch insists on longs for whatever reason...
-        label[index_row["category_idx"]] = 1  # One-hot encoding.
+        # label = np.zeros(self.num_categories, dtype=np.int64)  # PyTorch insists on longs for whatever reason...
+        # label[index_row["category_idx"]] = 1  # One-hot encoding.
 
         if self.transform:
             image = self.transform(image)
 
-        return image, torch.from_numpy(label)
+        return image, self.idx2level[index_row["category_idx"]]
 
     def make_category_tables(self, categories_path):
         """
@@ -113,12 +123,26 @@ class CDiscountDataSet(Dataset):
         categories_df = pd.read_csv(categories_path, index_col="category_id")
         categories_df["category_idx"] = pd.Series(range(len(categories_df)), index=categories_df.index)
 
+        counter = 0
+        category_numbers = {}
         for itr in categories_df.itertuples():
             category_id = itr[0]
             category_idx = itr[4]
 
             self.cat2idx[category_id] = category_idx
             self.idx2cat[category_idx] = category_id
+
+            # A category may have the same name at the 3rd level only as some other category, but different names
+            # at levels 1 and 2, so we build a tuple of length 1, 2, or 3 depending on the level to distinguish them.
+            # E.g.: we have could have a "light" in automotive, car parts, light but also have a "light" in
+            #       home & garden, interior, light.
+            category_tuple = tuple(itr[i + 1] for i in range(self.category_level))
+
+            if category_tuple not in category_numbers:
+                category_numbers[category_tuple] = counter
+                counter += 1
+
+            self.idx2level[category_idx] = category_numbers[category_tuple]
 
     def get_offsets(self, bsonpath):
         """
@@ -224,9 +248,9 @@ def demo():
     """
     Demonstrate the primary functions in this file.
     """
-    ds = CDiscountDataSet('train_example.bson')
+    ds = CDiscountDataSet('train_example.bson', category_level=3)
 
-    print("Total number of categories: {:d}".format(len(ds.cat2idx)))
+    print("Total number of output classes: {:d}".format(max(ds.idx2level.values()) + 1))
     print("Number of images: {:d}".format(len(ds.indexes)))
 
     print("\nAn example of the offsets dataframe: ")
