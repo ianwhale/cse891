@@ -6,6 +6,12 @@ import pandas as pd
 class StatsManager:
 
     def __init__(self, dataframe):
+        """
+        Constructor.
+        Creates files needed for basic stats.
+
+        :param dataframe: CDiscountDataset to create stats manager
+        """
         self.dataframe = dataframe
 
         self.categories_df = pd.read_csv('category_names.csv', index_col="category_id")
@@ -15,26 +21,21 @@ class StatsManager:
         self.cat2_dict = self.get_level_breakdown(level=2)
         self.cat3_dict = self.get_level_breakdown(level=3)
 
-    # def __str__(self):
-    #     min_ = self.get_min()
-    #     max_ = self.get_max()
-    #     mean_ = self.get_mean()
-    #     med_ = self.get_median()
-    #
-    #     s = "\nStats Manager:\n--------------\n" + \
-    #         "MIN -> Index: {} Value: {}\n".format(min_, self.data[min_]) + \
-    #         "MAX -> Index: {} Value: {}\n".format(max_, self.data[max_]) + \
-    #         "MEAN -> {0:.2f}\n".format(mean_) + \
-    #         "MEDIAN -> {0:.2f}\n".format(med_)
-    #
-    #     return s
-
     def csv_to_dict(self, file_name):
+        """
+        Function to read given csv file into a dict
+
+        :param file_name: Name of csv file
+        :return: Dict of csv data
+        """
         csv_dict = {}
+
         file_ = open(file_name, 'r')
         data = file_.read().split('\n')
-        if data[-1] == '': data.pop()
         file_.close()
+
+        if data[-1] == '':
+            data.pop()
 
         for line in data:
             key, value = line.split(',')
@@ -43,6 +44,13 @@ class StatsManager:
         return csv_dict
 
     def write_dict(self, dict_to_write, file_name):
+        """
+        Writes stats dict to file.
+
+        :param dict_to_write:
+        :param file_name:
+        :return:
+        """
         print("Writing {} to file:".format(file_name))
         file_ = open(file_name, 'w')
         for key in dict_to_write.keys():
@@ -51,28 +59,14 @@ class StatsManager:
         print("Done")
         file_.close()
 
-    # def get_min(self):
-    #     min_key = min(self.data, key=self.data.get)
-    #     return min_key
-    #
-    # def get_max(self):
-    #     max_key = max(self.data, key=self.data.get)
-    #     return max_key
-    #
-    # def get_mean(self):
-    #     val_sum = 0
-    #     for key in self.data: val_sum += self.data[key]
-    #     return val_sum / len(self.data)
-    #
-    # def get_median(self):
-    #     sort_data = sorted(self.data.values())
-    #     len_data = len(sort_data)
-    #     if len_data % 2 == 0:
-    #         return (sort_data[len_data // 2 - 1] + sort_data[len_data // 2]) / 2
-    #     else:
-    #         return sort_data[len_data // 2]
-
     def get_category_breakdown(self, levelA, levelB):
+        """
+        Count number of unique categories for levelB given a levelA category
+
+        :param levelA: integer to denote superset level
+        :param levelB: integer to denote subset level
+        :return: dict with levelA categories as key, count of unique categories as value
+        """
         level_a_keys = self.categories_df["category_level{}".format(levelA)].unique()
         category_count = {k: 0 for k in level_a_keys}
 
@@ -88,11 +82,13 @@ class StatsManager:
 
         return category_count
 
-
-
-
-
     def get_level_breakdown(self, level):
+        """
+        Get number of images in data set for each category in a level
+
+        :param level: integer to denote what level to get breakdown from
+        :return:
+        """
         file_name = 'category_count_level{}.csv'.format(level)
 
         if isfile(file_name):
@@ -126,4 +122,3 @@ if __name__ == "__main__":
     statsM.write_dict(statsM.get_category_breakdown(1, 2), "level_1-2_cat_breakdown.csv")
     statsM.write_dict(statsM.get_category_breakdown(1, 3), "level_1-3_cat_breakdown.csv")
     statsM.write_dict(statsM.get_category_breakdown(2, 3), "level_2-3_cat_breakdown.csv")
-    # statsM.run_stats()
