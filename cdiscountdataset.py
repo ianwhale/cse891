@@ -263,7 +263,7 @@ def demo():
     ds = CDiscountDataSet('train_example.bson', category_level=3)
 
     print("Total number of output classes: {:d}".format(ds.num_categories))
-    print("Number of images: {:d}".format(len(ds.indexes)))
+    print("Number of images: {:d}".format(len(ds)))
 
     print("\nAn example of the offsets dataframe: ")
     print(ds.offsets.iloc[0])
