@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from os.path import isfile
+from math import ceil
 from torch.optim import lr_scheduler
 from collections import defaultdict
 from torch.utils.data import Dataset
@@ -59,13 +60,12 @@ class CDiscountDataSet(Dataset):
 
         self.transform = transform
 
-        self.category_level = category_level
-        self.idx2level = {}  # Given an index, transform to a category level index.
-        self.cat2idx = {}    # Given category, transform to index.
-        self.idx2cat = {}    # Given index, transform to category (not really used, but here for possible use later).
+        self.category_level = category_level  # This all made sense at the time...
+        self.level2class = {}  # Given a category level index, transform to a output class label.
+        self.idx2level = {}    # Given an index, transform to a category level index.
+        self.cat2idx = {}      # Given category, transform to index.
+        self.idx2cat = {}      # Given index, transform to category (not really used, but here for possible use later).
         self.make_category_tables(categories_path)
-
-        self.num_categories = max(self.idx2level.values()) + 1
 
         self.offsets = None  # Csv loaded into memory as a pandas dataframe.
         self.get_offsets(bsonpath)
@@ -74,9 +74,13 @@ class CDiscountDataSet(Dataset):
         self.indexes = None  # Csv loaded into memory as a pandas dataframe.
         self.get_indexes()
 
+        self.build_level2class()
+
         self.file = open(bsonpath, "rb")  # Actual bson data file pointer (doesn't load into memory).
 
         self.lock = threading.Lock()  # Lock since Pytorch uses multithreading (maybe?).
+
+        self.num_categories = max(self.level2class.values()) + 1
 
     def __len__(self):
         """
@@ -114,7 +118,7 @@ class CDiscountDataSet(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        return image, self.idx2level[index_row["category_idx"]]
+        return image, self.level2class[self.idx2level[index_row["category_idx"]]]
 
     def make_category_tables(self, categories_path):
         """
@@ -145,6 +149,18 @@ class CDiscountDataSet(Dataset):
                 counter += 1
 
             self.idx2level[category_idx] = category_numbers[category_tuple]
+
+    def build_level2class(self):
+        """
+        Clases may have been removed due to the new trimming processes, so we have to build a output class dictionary.
+        """
+        seen = 0
+        for row in self.indexes.itertuples():
+            category = row[2]
+
+            if category not in self.level2class:
+                self.level2class[self.idx2level[category]] = seen
+                seen += 1
 
     def get_offsets(self, bsonpath):
         """
@@ -199,14 +215,67 @@ class CDiscountDataSet(Dataset):
 
         self.offsets = df
 
+    def trim_categories(self, category_dict):
+        """
+        Remove the categories that are too small and sample from the ones that are too big.
+        :param category_dict: maps category number to list of product ids.
+        :return: dict
+        """
+        counts = defaultdict(int)
+        level2cat = defaultdict(list)
+
+        for key, value in category_dict.items():
+            level = self.idx2level[self.cat2idx[key]]
+            counts[level] += len(value)
+
+            level2cat[level].append(key)
+
+        to_remove = []
+
+        for key, value in category_dict.items():
+            level = self.idx2level[self.cat2idx[key]]
+            count = counts[level]
+
+            if count < self.trim_classes:
+                # Remove all the categories associated with that class level, there are too few examples.
+                to_remove += level2cat[level]
+
+            if count > self.trim_classes:
+                # This is a little complicated since we only know the sum of the values is over the trim limit.
+                # Take an equal number of examples from each category, but if there aren't enough just take them all.
+                # If we do the second option, we have to update how many examples we need from the other classes.
+                cats = level2cat[level]
+                num_cats = len(level2cat[level])
+                total_examples = 0
+                cats_used = 0
+                examples_needed = ceil(self.trim_classes / num_cats)
+
+                # Sort the categories by how many ids they have.
+                # We want the smallest ones first to be able to compensate for them being possibly too small.
+                cats.sort(key=lambda x: len(category_dict[x]))
+
+                for cat in cats:
+                    cats_used += 1
+                    ids = category_dict[cat]
+
+                    if len(ids) < examples_needed:
+                        total_examples += len(ids)
+                        examples_needed = ceil((self.trim_classes - total_examples) / (num_cats - cats_used))
+
+                    else:
+                        category_dict[cat] = np.random.choice(ids, examples_needed, replace=False)
+                        total_examples += examples_needed
+
+            # In the unlikely event we have examples self.trim_classes examples, we don't do anything.
+
+        for key in to_remove:
+            category_dict.pop(key, None)
+
+        return category_dict
+
     def get_indexes(self):
         """
         Get the indexes that will actually be used.
-
-        TODO: Doing some more sophisticated choice here, rather than choosing everything.
-              Possibilities:
-                    - Balance class sizes.
-                    - Remove some smallest % of classes.
         """
         if not self.trim_classes and isfile("training" + self.INDEXES_PATH):
             print("Found stored indexes! Loading from csv...")
@@ -219,23 +288,7 @@ class CDiscountDataSet(Dataset):
             category_dict[itr[4]].append(itr[0])
 
         if self.trim_classes:
-
-            to_remove = []
-
-            for key, value in category_dict.items():
-                if len(value) < self.trim_classes:
-                    to_remove.append(key)
-
-                if len(value) >= self.trim_classes:
-                    category_dict[key] = np.random.choice(
-                        category_dict[key],
-                        self.trim_classes,
-                        replace=False)
-
-            for key in to_remove:
-                del category_dict[key]
-
-            self.num_categories = len(category_dict)
+            category_dict = self.trim_categories(category_dict)
 
         index_list = []
         for category_id, product_ids in category_dict.items():
@@ -272,11 +325,11 @@ def demo():
     print(ds.indexes.iloc[0])
 
     print("\nDo a random access into the dataset: ")
-    print(ds[5])
+    print(ds[0])
 
     for i in range(len(ds)):
         # Make sure everything can be indexed without error.
-        ds[i]
+        print(ds[i])
 
     # Use ds[i][0].show() to look at the image if you want.
 
