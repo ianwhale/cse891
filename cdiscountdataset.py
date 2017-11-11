@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from os.path import isfile
+from torch.optim import lr_scheduler
 from collections import defaultdict
 from torch.utils.data import Dataset
 
@@ -32,7 +33,8 @@ class CDiscountDataSet(Dataset):
     def __init__(self, bsonpath,
                  categories_path=None,
                  transform=None,
-                 category_level=3):
+                 category_level=3,
+                 trim_classes=None):
         """
         Constructor.
         Creates the files necessary for random indexing across the bson file.
@@ -43,6 +45,8 @@ class CDiscountDataSet(Dataset):
             - 3: All three categories (biggest task, 5270 classes).
             - 2: Second category.
             - 1: First category (smallest task, around 50 classes).
+        :param trim_classes: int or None, if int, all classes with less than X examples are remove, all those with
+            more are trimmed to have only X.
         """
         if not isfile(bsonpath):
             raise FileNotFoundError("CDiscountDataSet __init__ given nonexistent bson filepath.")
@@ -61,11 +65,12 @@ class CDiscountDataSet(Dataset):
         self.idx2cat = {}    # Given index, transform to category (not really used, but here for possible use later).
         self.make_category_tables(categories_path)
 
-        self.num_categories = max(self.idx2level.values()) + 1  # Number of categories. Used for one-hot encoding.
+        self.num_categories = max(self.idx2level.values()) + 1
 
         self.offsets = None  # Csv loaded into memory as a pandas dataframe.
         self.get_offsets(bsonpath)
 
+        self.trim_classes = trim_classes
         self.indexes = None  # Csv loaded into memory as a pandas dataframe.
         self.get_indexes()
 
@@ -203,7 +208,7 @@ class CDiscountDataSet(Dataset):
                     - Balance class sizes.
                     - Remove some smallest % of classes.
         """
-        if isfile("training" + self.INDEXES_PATH):
+        if not self.trim_classes and isfile("training" + self.INDEXES_PATH):
             print("Found stored indexes! Loading from csv...")
             self.indexes = pd.read_csv("training" + self.INDEXES_PATH, index_col=0)
             return
@@ -212,6 +217,25 @@ class CDiscountDataSet(Dataset):
 
         for itr in self.offsets.itertuples():
             category_dict[itr[4]].append(itr[0])
+
+        if self.trim_classes:
+
+            to_remove = []
+
+            for key, value in category_dict.items():
+                if len(value) < self.trim_classes:
+                    to_remove.append(key)
+
+                if len(value) >= self.trim_classes:
+                    category_dict[key] = np.random.choice(
+                        category_dict[key],
+                        self.trim_classes,
+                        replace=False)
+
+            for key in to_remove:
+                del category_dict[key]
+
+            self.num_categories = len(category_dict)
 
         index_list = []
         for category_id, product_ids in category_dict.items():
@@ -260,10 +284,6 @@ def demo():
     remove('training' + ds.OFFSETS_PATH)
     remove('training' + ds.INDEXES_PATH)
 
-
-    import torchvision
-
-    torchvision.transforms.Scale
 
 if __name__ == "__main__":
     # Demo if train_example.bson is present.
