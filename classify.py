@@ -1,3 +1,4 @@
+import time
 import torch
 import torchvision
 import torch.nn as nn
@@ -45,18 +46,27 @@ def classify():
     train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=batch_size)
     valid_loader = DataLoader(dataset, sampler=valid_sampler, batch_size=batch_size)
 
+    dataloaders = {
+            "train": train_loader,
+            "val": valid_loader
+    }
+
     print("Done.")
 
     num_classes = train_loader.dataset.num_categories
 
     model = torchvision.models.resnet18(pretrained=True)
+
+    for param in model.parameters():
+        param.requires_grad = False
+
     num_filters = model.fc.in_features
     model.fc = nn.Linear(num_filters, num_classes)  # Resize output layer.
 
-    learning_rate = 1e-2
+    learning_rate = 1e-3
     momentum = 0.9
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+    optimizer = optim.SGD(model.fc.parameters(), lr=learning_rate, momentum=momentum)
 
     epochs = 10
     log_interval = 200
@@ -68,62 +78,70 @@ def classify():
 
     print("Done.")
 
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
     # Code adapated from: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
+    since = time.time()
+
+    best_model_wts = model.state_dict()
+    best_acc = 0
+
     for epoch in range(epochs):
-        model.train()
-        correct = 0
+        print("Epoch {} / {}".format(epoch, epochs - 1))
+        print("-" * 10)
 
-        exp_lr_scheduler.step()
+        for phase in ["train", "val"]:
+            if phase == "train":
+                exp_lr_scheduler.step()
+                model.train(True)
 
-        for batch_idx, (data, target) in enumerate(train_loader):
-            print("Allocating data.")
+            else:
+                model.train(False)
 
-            if cuda:
-                data, target = data.cuda(), target.cuda()
+            running_loss = 0.0
+            running_corrects = 0
 
-            data, target = Variable(data), Variable(target)
+            for data in dataloaders[phase]:
+                inputs, labels = data
 
-            print(data)
-            print(target)
+                if cuda:
+                    inputs = Variable(inputs.cuda())
+                    labels = Variable(labels.cuda())
 
-            optimizer.zero_grad()
+                else:
+                    inputs = Variable(inputs)
+                    labels = Variable(labels)
 
-            outputs = model(data)
-            _, preds = torch.max(outputs.data, 1)
-            loss = criterion(outputs, target)
+                optimizer.zero_grad()
 
-            loss.backward()
-            optimizer.step()
+                outputs = model(inputs)
+                _, preds = torch.max(outputs.data, 1)
+                loss = criterion(outputs, labels)
 
-            correct += torch.sum(preds == target.data)
+                if phase == "train":
+                    loss.backward()
+                    optimizer.step()
 
-            if batch_idx % log_interval == 0:
-                print("Train epoch: {}. [{} / {}] \t Loss: {:.6f}".format(epoch,
-                    batch_idx * len(data), len(train_idx), loss.data[0]))
+                running_loss += loss.data[0]
+                running_corrects += torch.sum(preds == labels.data)
 
-        print("\n Train epoch: {}. \t Accuracy: {:.6f}".format(epoch,
-                        100. * correct / len(train_idx)))
+            epoch_loss = running_loss / len(data_loaders[phase].dataset)
+            epoch_acc = running_corrects / len(data_loaders[phase].dataset)
 
-        model.eval()
-        correct = 0
+            print("{} Loss: {:.4f}  Acc: {:.4f}".format(phase, epoch_loss, epoch_acc))
 
-        for batch_idx, (data, target) in enumerate(valid_loader):
-            if cuda:
-                data, target = data.cuda(), target.cuda()
+            if phase == "val" and epoch_acc > best_acc:
+                bast_acc = epoch_acc
+                best_model_wts = model.state_dict()
 
-            data, target = Variable(data), Variable(target)
+        print()
 
-            optimizer.zero_grad()
+    time_elapsed = time.time() - since
 
-            outputs = model(data)
-            _, pred = torch.max(outputs.data, 1)
+    print("Training completed in {:.0f}m {:.0f}s".format(
+        time_elapsed // 60, time_elapsed % 60))
+    print("Best validation accuracy: {:4f}".format(best_acc))
 
-            correct += torch.sum(preds == target.data)
-
-        print("\n Validation epoch: {}. \t Accuracy: {:.6f}".format(epoch,
-            100. * correct / len(valid_idx)))
 
 if __name__ == "__main__":
     classify()
