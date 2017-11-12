@@ -282,6 +282,11 @@ class CDiscountDataSet(Dataset):
             self.indexes = pd.read_csv("training" + self.INDEXES_PATH, index_col=0)
             return
 
+        if self.trim_classes and isfile("training_" + str(self.trim_classes) + self.INDEXES_PATH):
+            print("Found stored indexes with trimmed classes! Loading from csv...")
+            self.indexes = pd.read_csv("training_" + str(self.trim_classes) + self.INDEXES_PATH, index_col=0)
+            return
+
         category_dict = defaultdict(list)  # Product ids belonging to each category.
 
         for itr in self.offsets.itertuples():
@@ -303,7 +308,7 @@ class CDiscountDataSet(Dataset):
         columns = ["product_id", "category_idx", "img_idx"]
         index_df = pd.DataFrame(index_list, columns=columns)
 
-        index_df.to_csv("training" + self.INDEXES_PATH)
+        index_df.to_csv("training" + ("_" + str(self.trim_classes) if self.trim_classes else "") + self.INDEXES_PATH)
 
         self.indexes = index_df
 
@@ -313,7 +318,7 @@ def demo():
     """
     Demonstrate the primary functions in this file.
     """
-    ds = CDiscountDataSet('train_example.bson', category_level=3)
+    ds = CDiscountDataSet('train_example.bson', category_level=1)
 
     print("Total number of output classes: {:d}".format(ds.num_categories))
     print("Number of images: {:d}".format(len(ds)))
@@ -329,7 +334,7 @@ def demo():
 
     for i in range(len(ds)):
         # Make sure everything can be indexed without error.
-        print(ds[i])
+        ds[i]
 
     # Use ds[i][0].show() to look at the image if you want.
 
