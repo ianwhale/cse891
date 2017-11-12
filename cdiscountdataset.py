@@ -291,6 +291,16 @@ class CDiscountDataSet(Dataset):
         if self.trim_classes and isfile("training_" + str(self.trim_classes) + self.INDEXES_PATH):
             print("Found stored indexes with trimmed classes! Loading from csv...")
             self.indexes = pd.read_csv("training_" + str(self.trim_classes) + self.INDEXES_PATH, index_col=0)
+
+            # Still need to rebuild the idx2level dictionary.
+            category_dict = defaultdict(list)  # Product ids belonging to each category.
+
+            for itr in self.offsets.itertuples():
+                category_dict[itr[4]].append(itr[0])
+
+            if self.trim_classes:
+                category_dict = self.trim_categories(category_dict)
+                self.rebuild_idx2level(category_dict)
             return
 
         category_dict = defaultdict(list)  # Product ids belonging to each category.
