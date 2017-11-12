@@ -61,7 +61,6 @@ class CDiscountDataSet(Dataset):
         self.transform = transform
 
         self.category_level = category_level  # This all made sense at the time...
-        self.level2class = {}  # Given a category level index, transform to a output class label.
         self.idx2level = {}    # Given an index, transform to a category level index.
         self.cat2idx = {}      # Given category, transform to index.
         self.idx2cat = {}      # Given index, transform to category (not really used, but here for possible use later).
@@ -74,13 +73,11 @@ class CDiscountDataSet(Dataset):
         self.indexes = None  # Csv loaded into memory as a pandas dataframe.
         self.get_indexes()
 
-        self.build_level2class()
-
         self.file = open(bsonpath, "rb")  # Actual bson data file pointer (doesn't load into memory).
 
         self.lock = threading.Lock()  # Lock since Pytorch uses multithreading (maybe?).
 
-        self.num_categories = max(self.level2class.values()) + 1
+        self.num_categories = max(self.idx2level.values()) + 1
 
     def __len__(self):
         """
@@ -112,13 +109,11 @@ class CDiscountDataSet(Dataset):
 
         # Create the image object.
         image = Image.open(bson_img)
-        # label = np.zeros(self.num_categories, dtype=np.int64)  # PyTorch insists on longs for whatever reason...
-        # label[index_row["category_idx"]] = 1  # One-hot encoding.
 
         if self.transform:
             image = self.transform(image)
 
-        return image, self.level2class[self.idx2level[index_row["category_idx"]]]
+        return image, self.idx2level[index_row["category_idx"]]
 
     def make_category_tables(self, categories_path):
         """
@@ -149,18 +144,6 @@ class CDiscountDataSet(Dataset):
                 counter += 1
 
             self.idx2level[category_idx] = category_numbers[category_tuple]
-
-    def build_level2class(self):
-        """
-        Clases may have been removed due to the new trimming processes, so we have to build a output class dictionary.
-        """
-        seen = 0
-        for row in self.indexes.itertuples():
-            category = row[2]
-
-            if category not in self.level2class:
-                self.level2class[self.idx2level[category]] = seen
-                seen += 1
 
     def get_offsets(self, bsonpath):
         """
@@ -240,7 +223,7 @@ class CDiscountDataSet(Dataset):
                 # Remove all the categories associated with that class level, there are too few examples.
                 to_remove += level2cat[level]
 
-            if count > self.trim_classes:
+            elif count > self.trim_classes:
                 # This is a little complicated since we only know the sum of the values is over the trim limit.
                 # Take an equal number of examples from each category, but if there aren't enough just take them all.
                 # If we do the second option, we have to update how many examples we need from the other classes.
@@ -266,12 +249,35 @@ class CDiscountDataSet(Dataset):
                         category_dict[cat] = np.random.choice(ids, examples_needed, replace=False)
                         total_examples += examples_needed
 
-            # In the unlikely event we have examples self.trim_classes examples, we don't do anything.
+            # In the unlikely event we have examples self.trim_classes examples, we don't do anything to category_dict.
 
         for key in to_remove:
             category_dict.pop(key, None)
 
         return category_dict
+
+    def rebuild_idx2level(self, category_dict):
+        """
+        When we trim classes, we need to rebuild the idx2level dictionary.
+        Since some classes may be deleted, the output class calculation will be incorrect.
+        Basically we're remapping the old levels to new ones.
+        :param category_dict:
+        :return:
+        """
+        counter = 0
+        new_idx2level = {}
+        remap_levels = {}
+        for key in category_dict.keys():
+            cat_idx = self.cat2idx[key]
+            level = self.idx2level[cat_idx]
+
+            if level not in remap_levels:
+                remap_levels[level] = counter
+                counter += 1
+
+            new_idx2level[cat_idx] = remap_levels[level]
+
+        self.idx2level = new_idx2level
 
     def get_indexes(self):
         """
@@ -294,6 +300,7 @@ class CDiscountDataSet(Dataset):
 
         if self.trim_classes:
             category_dict = self.trim_categories(category_dict)
+            self.rebuild_idx2level(category_dict)
 
         index_list = []
         for category_id, product_ids in category_dict.items():
@@ -332,9 +339,11 @@ def demo():
     print("\nDo a random access into the dataset: ")
     print(ds[0])
 
+    print("\nAttempting to access each value without errors...")
     for i in range(len(ds)):
         # Make sure everything can be indexed without error.
-        ds[i]
+        print(ds[i])
+    print("Done.")
 
     # Use ds[i][0].show() to look at the image if you want.
 
