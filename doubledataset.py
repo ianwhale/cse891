@@ -36,7 +36,6 @@ class DoubleDataSet(Dataset):
         Generate the data and label lists.
         :param fp1: file path 1.
         :param fp2: file path 2.
-        :param mode: "binary" or "multi".
         :return:
         """
         data = []
@@ -56,12 +55,8 @@ class DoubleDataSet(Dataset):
                 data.append(entry["image"])
                 fp_labels.append(entry["category"])
 
-            print(count)
-
             self.class_indexes[i] = indexes
             labels.append(fp_labels)
-
-        print(count)
 
         return data, DoubleDataSet.parse_labels(labels)
 
@@ -82,7 +77,7 @@ class DoubleDataSet(Dataset):
         category_labels = []
         for label in label_list:
             if label in category_counts:
-                 category_labels.append(category_counts[label])
+                category_labels.append(category_counts[label])
 
             else:
                 category_counts[label] = count
