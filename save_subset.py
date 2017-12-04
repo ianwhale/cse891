@@ -11,6 +11,7 @@ import torchvision
 import pandas as p
 import multiprocessing as mp
 from PIL import Image
+from collections import defaultdict
 
 
 NCORE = 4
@@ -74,15 +75,22 @@ def save_subset(category_dict, name, fp, num_images=15000):
 
     images = 0
 
+    category_counts = defaultdict(int)
+    per_cat_threshold = 500
+
     for entry in data:
         if entry['category_id'] in category_dict:
 
-            if images > num_images:
+            if images > num_images:  # We've collected ~15,000 images.
                 break
+
+            if category_counts[entry['category_id']] > per_cat_threshold:  # We've collected enough from this category.
+                continue
 
             q.put(entry)
 
             images += len(entry['imgs'])
+            category_counts[entry['category_id']] += len(entry['imgs'])
 
     for _ in range(NCORE):
         q.put(None)
