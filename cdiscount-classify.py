@@ -11,6 +11,8 @@ from cdiscountdataset import CDiscountDataSet
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from collections import defaultdict
+import json
+import os
 
 from doubledataset import DoubleDataSet as DDS
 
@@ -50,7 +52,7 @@ def load_data(which):
 
     return dataloaders, num_classes, batch_size
 
-def classify(which, pretrain):
+def classify(which, pretrain, run_label):
 
     cuda = False
     fine_tune = False
@@ -90,67 +92,75 @@ def classify(which, pretrain):
     best_model_wts = model.state_dict()
     best_acc = 0
 
-    for epoch in range(epochs):
-        print("Epoch {} / {}".format(epoch, epochs - 1))
-        print("-" * 10)
+    epoch_losses = list()
+    epoch_accs = list()
 
-        for phase in ["train", "val"]:
-            if phase == "train":
-                exp_lr_scheduler.step()
-                model.train(True)
+    try:
+        for epoch in range(epochs):
+            print("Epoch {} / {}".format(epoch, epochs - 1))
+            print("-" * 10)
 
-            else:
-                model.train(False)
-
-            running_loss = 0.0
-            running_corrects = 0
-
-            counter = 0
-
-            for data in dataloaders[phase]:
-                inputs, labels = data
-
-                if cuda:
-                    inputs = Variable(inputs.cuda())
-                    labels = Variable(labels.cuda())
+            for phase in ["train", "val"]:
+                if phase == "train":
+                    exp_lr_scheduler.step()
+                    model.train(True)
 
                 else:
-                    inputs = Variable(inputs)
-                    labels = Variable(labels)
+                    model.train(False)
 
-                optimizer.zero_grad()
+                running_loss = 0.0
+                running_corrects = 0
 
-                outputs = model(inputs)
-                _, preds = torch.max(outputs.data, 1)
-                loss = criterion(outputs, labels)
+                counter = 0
 
-                if phase == "train":
-                    loss.backward()
-                    optimizer.step()
+                for data in dataloaders[phase]:
+                    inputs, labels = data
 
-                running_loss += loss.data[0]
-                running_corrects += torch.sum(preds == labels.data)
+                    if cuda:
+                        inputs = Variable(inputs.cuda())
+                        labels = Variable(labels.cuda())
 
-                if phase == "train" and counter != 0 and counter % log_interval == 0:
-                    print("Training loss at iteration {}: {:.4f}".format(counter,
-                        running_loss / (counter * batch_size)))
-                    print("Training accuracy at iteration {}: {:.4f}".format(counter,
-                        running_corrects / (counter * batch_size)))
+                    else:
+                        inputs = Variable(inputs)
+                        labels = Variable(labels)
+
+                    optimizer.zero_grad()
+
+                    outputs = model(inputs)
+                    _, preds = torch.max(outputs.data, 1)
+                    loss = criterion(outputs, labels)
+
+                    if phase == "train":
+                        loss.backward()
+                        optimizer.step()
+
+                    running_loss += loss.data[0]
+                    running_corrects += torch.sum(preds == labels.data)
+
+                    if phase == "train" and counter != 0 and counter % log_interval == 0:
+                        print("Training loss at iteration {}: {:.4f}".format(counter,
+                            running_loss / (counter * batch_size)))
+                        print("Training accuracy at iteration {}: {:.4f}".format(counter,
+                            running_corrects / (counter * batch_size)))
 
 
-                counter += 1
+                    counter += 1
 
 
-            epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            epoch_acc = running_corrects / len(dataloaders[phase].dataset)
+                epoch_loss = running_loss / len(dataloaders[phase].dataset)
+                epoch_losses.append(epoch_loss)
+                epoch_acc = running_corrects / len(dataloaders[phase].dataset)
+                epoch_accs.append(epoch_acc)
 
-            print("{} Loss: {:.4f}  Acc: {:.4f}".format(phase, epoch_loss, epoch_acc))
+                print("{} Loss: {:.4f}  Acc: {:.4f}".format(phase, epoch_loss, epoch_acc))
 
-            if phase == "val" and epoch_acc > best_acc:
-                bast_acc = epoch_acc
-                best_model_wts = model.state_dict()
+                if phase == "val" and epoch_acc > best_acc:
+                    bast_acc = epoch_acc
+                    best_model_wts = model.state_dict()
 
-        print()
+            print()
+    except KeyboardInterrupt:
+        print("aborting...")
 
     time_elapsed = time.time() - since
 
@@ -159,10 +169,24 @@ def classify(which, pretrain):
     print("Best validation accuracy: {:4f}".format(best_acc))
 
 
+    print("Saving results...")
+    os.makedirs("out/", exist_ok=True)
+    path = "out/" + run_label + "/"
+    os.makedirs(path, exist_ok=True)
+
+    with open(path + run_label + "-" + which + "-losses.json", 'w') as fp:
+        json.dump(epoch_losses, fp)
+
+    with open(path + run_label + "-" + which + "-accs.json", "w") as fp:
+        json.dump(epoch_accs, fp)
+
+    torch.save(model, path + run_label + "-" + which + "-model.pt")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("c_type", type=str, help='type of classification to run [binary, flat]')
     parser.add_argument("pretrain", type=bool, help='start with a pretrained model [1, 0]')
+    parser.add_argument("run_label", type=str, help='title of run for saving data')
     args = parser.parse_args()
 
-    classify(args.c_type, args.pretrain)
+    classify(args.c_type, args.pretrain, args.run_label)
