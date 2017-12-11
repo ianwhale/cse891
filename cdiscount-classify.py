@@ -54,7 +54,7 @@ def load_data(which):
 
 def classify(which, pretrain, run_label):
 
-    cuda = False
+    cuda = True
     fine_tune = False
 
     dataloaders, num_classes, batch_size = load_data(which)
@@ -73,13 +73,14 @@ def classify(which, pretrain, run_label):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.fc.parameters(), lr=learning_rate, momentum=momentum)
 
-    epochs = 10
+    epochs = 100
     log_interval = 1
 
     print("Loading model to Cuda...")
 
     if cuda:
         criterion, model = criterion.cuda(), model.cuda()
+        print("Model loaded to Cuda")
 
     print("Done.")
 
@@ -139,7 +140,7 @@ def classify(which, pretrain, run_label):
 
                     if phase == "train" and counter != 0 and counter % log_interval == 0:
                         print("Training loss at iteration {}: {:.4f}".format(counter,
-                            running_loss / (counter * batch_size)))
+                            running_loss / (counter)))
                         print("Training accuracy at iteration {}: {:.4f}".format(counter,
                             running_corrects / (counter * batch_size)))
 
@@ -147,9 +148,9 @@ def classify(which, pretrain, run_label):
                     counter += 1
 
 
-                epoch_loss = running_loss / len(dataloaders[phase].dataset)
+                epoch_loss = running_loss / (counter)
                 epoch_losses.append(epoch_loss)
-                epoch_acc = running_corrects / len(dataloaders[phase].dataset)
+                epoch_acc = running_corrects / (len(dataloaders[phase].sampler))
                 epoch_accs.append(epoch_acc)
 
                 print("{} Loss: {:.4f}  Acc: {:.4f}".format(phase, epoch_loss, epoch_acc))
