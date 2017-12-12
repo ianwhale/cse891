@@ -10,14 +10,14 @@ import json, codecs
 import os
 import matplotlib.pyplot as plt
 
-def plot_training(datas, labels, ylab, legend, title, slug, mul):
+def plot_training(datas, labels, ylab, legend, title, slug, mul, val_train):
 
     # draw and save loss vs epoch graph
     fig, ax = plt.subplots(nrows=1, ncols=1)
 
     for dat, lab in zip(datas, labels):
 
-        dat=dat[1::2]
+        dat=dat[val_train::2]
         p2 = ax.plot(
                 np.array(range(len(dat)))*mul,
                 dat,
@@ -62,10 +62,18 @@ dat_electronique_true_accs = json.load(open("out/electronique-true/electronique-
 dat_electronique_true_losses = json.load(open("out/electronique-true/electronique-true-electronique-losses.json"))
 
 
-plot_training([dat_binary_false_accs, dat_flat_false_accs, dat_meuble_false_accs, dat_electronique_false_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Accuracy During Training Without Fine Tuning", "false_accs", 1)
+plot_training([dat_binary_false_accs, dat_flat_false_accs, dat_meuble_false_accs, dat_electronique_false_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Validation Accuracy During Training Without Fine Tuning", "false_accs_val", 1, 1)
 
-plot_training([dat_binary_true_accs, dat_flat_true_accs, dat_meuble_true_accs, dat_electronique_true_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Accuracy During Training With Fine Tuning", "true_accs", 1)
+plot_training([dat_binary_true_accs, dat_flat_true_accs, dat_meuble_true_accs, dat_electronique_true_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Validation Accuracy During Training With Fine Tuning", "true_accs_val", 1, 1)
 
-plot_training([dat_binary_false_losses, dat_flat_false_losses, dat_meuble_false_losses, dat_electronique_false_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Loss During Training Without Fine Tuning", "false_losses", 1)
+plot_training([dat_binary_false_losses, dat_flat_false_losses, dat_meuble_false_losses, dat_electronique_false_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Validation Loss During Training Without Fine Tuning", "false_losses_val", 1, 1)
 
-plot_training([dat_binary_true_losses, dat_flat_true_losses, dat_meuble_true_losses, dat_electronique_true_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Loss During Training With Fine Tuning", "true_losses", 1)
+plot_training([dat_binary_true_losses, dat_flat_true_losses, dat_meuble_true_losses, dat_electronique_true_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Validation Loss During Training With Fine Tuning", "true_losses_val", 1, 1)
+
+plot_training([dat_binary_false_accs, dat_flat_false_accs, dat_meuble_false_accs, dat_electronique_false_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Training Accuracy During Training Without Fine Tuning", "false_accs_train", 1, 0)
+
+plot_training([dat_binary_true_accs, dat_flat_true_accs, dat_meuble_true_accs, dat_electronique_true_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Training Accuracy During Training With Fine Tuning", "true_accs_train", 1, 0)
+
+plot_training([dat_binary_false_losses, dat_flat_false_losses, dat_meuble_false_losses, dat_electronique_false_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Training Loss During Training Without Fine Tuning", "false_losses_train", 1, 0)
+
+plot_training([dat_binary_true_losses, dat_flat_true_losses, dat_meuble_true_losses, dat_electronique_true_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Training Loss During Training With Fine Tuning", "true_losses_train", 1, 0)
