@@ -58,14 +58,14 @@ dat_flat_true_losses = json.load(open("out/flat-true/flat-true-flat-losses.json"
 dat_meuble_true_accs = json.load(open("out/meuble-true/meuble-true-meuble-accs.json"))
 dat_meuble_true_losses = json.load(open("out/meuble-true/meuble-true-meuble-losses.json"))
 
-dat_electronique_true_accs = json.load(open("out/electronique-true-electronique-accs.json"))
-dat_electronique_true_losses = json.load(open("out/electronique-true-electronique-losses.json"))
+dat_electronique_true_accs = json.load(open("out/electronique-true/electronique-true-electronique-accs.json"))
+dat_electronique_true_losses = json.load(open("out/electronique-true/electronique-true-electronique-losses.json"))
 
 
-plot_training([dat_binary_false_accs, dat_flat_false_accs, dat_meuble_false_accs, dat_electronique_false_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Accuracy During Training Without Transfer Learning", "false_accs", 1)
+plot_training([dat_binary_false_accs, dat_flat_false_accs, dat_meuble_false_accs, dat_electronique_false_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Accuracy During Training Without Fine Tuning", "false_accs", 1)
 
-plot_training([dat_binary_true_accs, dat_flat_true_accs, dat_meuble_true_accs, dat_electronique_true_accs], ["Binary, Flat, Furniture, Electronics"], "Accuracy", True, "Model Accuracy During Training With Transfer Learning", "true_accs", 1)
+plot_training([dat_binary_true_accs, dat_flat_true_accs, dat_meuble_true_accs, dat_electronique_true_accs], ["Binary", "Flat", "Furniture", "Electronics"], "Accuracy", True, "Model Accuracy During Training With Fine Tuning", "true_accs", 1)
 
-plot_training([dat_binary_false_losses, dat_flat_false_losses, dat_meuble_false_losses, dat_electronique_false_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Loss During Training Without Transfer Learning", "false_losses", 1)
+plot_training([dat_binary_false_losses, dat_flat_false_losses, dat_meuble_false_losses, dat_electronique_false_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Loss During Training Without Fine Tuning", "false_losses", 1)
 
-plot_training([dat_binary_true_losses, dat_flat_true_losses, dat_meuble_true_losses, dat_electronique_true_losses], ["Binary, Flat, Furniture, Electronics"], "Loss", True, "Model Loss During Training With Transfer Learning", "true_losses", 1)
+plot_training([dat_binary_true_losses, dat_flat_true_losses, dat_meuble_true_losses, dat_electronique_true_losses], ["Binary", "Flat", "Furniture", "Electronics"], "Loss", True, "Model Loss During Training With Fine Tuning", "true_losses", 1)
