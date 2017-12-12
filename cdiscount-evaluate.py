@@ -62,8 +62,12 @@ def classify_flat(flat_model, valid_loader):
 
     running_corrects = 0
 
+    count = 0
+
     for data in valid_loader:
         inputs, labels = data
+
+        count += len(labels)
 
         if cuda:
             inputs = Variable(inputs.cuda())
@@ -79,7 +83,7 @@ def classify_flat(flat_model, valid_loader):
         running_corrects += torch.sum(preds == labels.data)
 
 
-    epoch_acc = running_corrects / len(valid_loader.dataset)
+    epoch_acc = running_corrects / count
 
     print("Flat Acc: {:.4f}".format(epoch_acc))
 
@@ -99,9 +103,12 @@ def classify_hier(
         electronique_model = electronique_model.cuda()
 
     running_corrects = 0
+    count = 0
 
     for data in valid_loader:
         inputs, labels = data
+
+        count += len(labels)
 
         if cuda:
             inputs = Variable(inputs.cuda())
@@ -131,7 +138,7 @@ def classify_hier(
         # i.e. from 0-19 to 20-39
         running_corrects += torch.sum((electronique_preds[electronique_filter] + 20) == labels.data[electronique_filter])
 
-    epoch_acc = running_corrects / len(valid_loader.dataset)
+    epoch_acc = running_corrects / count
 
     print("Hier Acc: {:.4f}".format(epoch_acc))
 
@@ -142,7 +149,7 @@ if __name__ == "__main__":
     models = dict()
     mlist = ["flat", "meuble", "electronique", "binary"]
 
-    models["flat"] = "out/flat-false/flat-false-flat-model.pt"
+    models["flat"] = "out/flat-true/flat-true-flat-model.pt"
     models["meuble"] = "out/meuble-false/meuble-false-meuble-model.pt"
     models["electronique"] = "out/electronique-false/electronique-false-electronique-model.pt"
     models["binary"] = "out/binary-false/binary-false-binary-model.pt"
